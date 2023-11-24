@@ -65,7 +65,10 @@ func (c *Canvas) redraw() {
 	c.clearScreen()
 	for _, line := range c.State {
 		for _, elem := range line {
-			fmt.Printf("\033[38;5;%dm\033[48;5;%dm%c\033[0m", elem[1], elem[2], ' ')
+			if elem[0] == 0 {
+				elem[0] = ' '
+			}
+			fmt.Printf("\033[38;5;%dm\033[48;5;%dm%c\033[0m", elem[1], elem[2], elem[0])
 		}
 		fmt.Print("\r\n")
 	}
@@ -78,7 +81,6 @@ func rawClearScreen() {
 }
 
 func printColorGrid() {
-	rawClearScreen()
 	for i := 0; i < 256; i++ {
 		if i > 0 && i%16 == 0 {
 			fmt.Print("\r\n")
@@ -93,7 +95,7 @@ func printColorGrid() {
 //   - [x] Display cursor position somewhere
 // - [x] Select and set a pixel
 // - [x] Set a color for a pixel
-// - [ ] Allow chars in pixel
+// - [x] Allow chars in pixel
 // - [ ] Save / Load work
 
 func run() error {
@@ -133,7 +135,7 @@ loop:
 	}
 	buf = buf[:n]
 
-	if c.EditMode == 0 {
+	if c.EditMode == EditModeCanvas {
 		if buf[0] == 'q' {
 			fmt.Printf("q press detected, exiting.\r\n")
 			return nil
@@ -162,7 +164,7 @@ loop:
 			fmt.Printf("\033[%c", buf[2])
 		}
 		if n == 1 && buf[0] == ' ' {
-			c.State[c.PosY][c.PosX][0] = 1
+			c.State[c.PosY][c.PosX][0] = ' '
 			c.State[c.PosY][c.PosX][1] = c.SettingForeground
 			c.State[c.PosY][c.PosX][2] = c.SettingBackground
 
@@ -170,22 +172,58 @@ loop:
 			c.PosX++
 		}
 		if n == 1 && buf[0] == 'f' {
+			c.clearScreen()
 			printColorGrid()
 			c.EditMode = EditModeForegroundGrid
 		}
 		if n == 1 && buf[0] == 'b' {
+			c.clearScreen()
 			printColorGrid()
 			c.EditMode = EditModeBackgroundGrid
 		}
 		if n == 1 && buf[0] == 'i' {
 			c.EditMode = EditModeInsert
+			goto loop
 		}
 	}
 
 	if c.EditMode != EditModeCanvas {
-		if buf[0] == 'q' {
+		if n == 1 && buf[0] == '\033' {
 			c.EditMode = EditModeCanvas
 			c.redraw()
+		}
+	}
+
+	if c.EditMode == EditModeInsert {
+		if n == 1 {
+			c.State[c.PosY][c.PosX][0] = int(buf[0])
+			c.State[c.PosY][c.PosX][1] = c.SettingForeground
+			c.State[c.PosY][c.PosX][2] = c.SettingBackground
+			fmt.Printf("\033[38;5;%dm\033[48;5;%dm%c\033[0m", c.SettingForeground, c.SettingBackground, buf[0])
+			c.PosX++
+		}
+
+		// Check if we hit an arrow key.
+		// 0o33: ESC
+		// 0o133: '['
+		if n == 3 && buf[0] == 0o33 && buf[1] == 0o133 {
+			switch buf[2] {
+			case 'A': // Up.
+				if c.PosY > 0 {
+					c.PosY--
+				}
+			case 'B': // Down.
+				c.PosY++ // TODO: Handle upper bounds.
+			case 'C': // Right.
+				c.PosX++ // TODO: Handle upper bounds.
+			case 'D': // Left
+				if c.PosX > 0 {
+					c.PosX--
+				}
+			default:
+				return fmt.Errorf("unexpected arrow key value: %O", buf[2])
+			}
+			fmt.Printf("\033[%c", buf[2])
 		}
 	}
 
