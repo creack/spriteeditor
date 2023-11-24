@@ -9,12 +9,23 @@ import (
 	"golang.org/x/term"
 )
 
+// EditMode enum type.
+type EditMode int
+
+// EditMode enum values.
+const (
+	EditModeCanvas         EditMode = 0
+	EditModeForegroundGrid EditMode = 1
+	EditModeBackgroundGrid EditMode = 2
+	EditModeInsert         EditMode = 3
+)
+
 // Canvas is our main controller holding state.
 type Canvas struct {
 	Width, Height int
 	PosX, PosY    int
 
-	EditMode int
+	EditMode EditMode
 
 	SettingForeground int
 	SettingBackground int
@@ -31,7 +42,7 @@ func NewCanvas(initialWidth, initialHeight int) *Canvas {
 		PosX: 0,
 		PosY: 0,
 
-		EditMode: 0,
+		EditMode: EditModeCanvas,
 
 		SettingForeground: 1,
 		SettingBackground: 15,
@@ -160,20 +171,25 @@ loop:
 		}
 		if n == 1 && buf[0] == 'f' {
 			printColorGrid()
-			c.EditMode = 1
+			c.EditMode = EditModeForegroundGrid
 		}
 		if n == 1 && buf[0] == 'b' {
 			printColorGrid()
-			c.EditMode = 2
+			c.EditMode = EditModeBackgroundGrid
+		}
+		if n == 1 && buf[0] == 'i' {
+			c.EditMode = EditModeInsert
 		}
 	}
 
-	if c.EditMode == 1 || c.EditMode == 2 {
+	if c.EditMode != EditModeCanvas {
 		if buf[0] == 'q' {
-			c.EditMode = 0
+			c.EditMode = EditModeCanvas
 			c.redraw()
 		}
+	}
 
+	if c.EditMode == EditModeForegroundGrid || c.EditMode == EditModeBackgroundGrid {
 		if n == 3 && buf[0] == 0o33 && buf[1] == 0o133 {
 			switch buf[2] {
 			case 'A': // Up.
@@ -204,7 +220,7 @@ loop:
 		}
 
 		if n == 1 && buf[0] == ' ' {
-			if c.EditMode == 1 {
+			if c.EditMode == EditModeForegroundGrid {
 				c.SettingForeground = c.PosY*16 + c.PosX/2
 			} else {
 				c.SettingBackground = c.PosY*16 + c.PosX/2
