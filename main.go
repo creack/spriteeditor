@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -96,7 +97,7 @@ func printColorGrid() {
 // - [x] Select and set a pixel
 // - [x] Set a color for a pixel
 // - [x] Allow chars in pixel
-// - [ ] Save / Load work
+// - [x] Save / Load work
 
 func run() error {
 	ts, err := term.MakeRaw(int(os.Stdin.Fd()))
@@ -184,6 +185,29 @@ loop:
 		if n == 1 && buf[0] == 'i' {
 			c.EditMode = EditModeInsert
 			goto loop
+		}
+		if n == 1 && buf[0] == 'o' {
+			encodedData, err := os.ReadFile("sprite.sprt")
+			if err != nil {
+				return fmt.Errorf("readfile: %w", err)
+			}
+
+			c.State = nil
+			if err := json.Unmarshal(encodedData, &c.State); err != nil {
+				return fmt.Errorf("json unmarshal: %w", err)
+			}
+			c.redraw()
+			goto loop
+		}
+		if n == 1 && buf[0] == 's' {
+			encodedData, err := json.Marshal(c.State)
+			if err != nil {
+				return fmt.Errorf("json marshal: %w", err)
+			}
+
+			if err := os.WriteFile("sprite.sprt", encodedData, 0o600); err != nil {
+				return fmt.Errorf("writefile: %w", err)
+			}
 		}
 	}
 
