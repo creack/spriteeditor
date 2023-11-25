@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"unicode/utf8"
 
 	"spriteeditor/keyboard"
 )
@@ -123,163 +122,166 @@ loop:
 
 	ev := <-ch
 
-	n := ev.Size
-	buf := ev.Raw
+	// if ev.Char == 'q' {
+	// 	return nil
+	// }
+	// fmt.Printf("[%d] %O\r\n", ev.Size, ev.Raw)
 
-	if n == 6 {
-		c.PosX, c.PosY = int(buf[4]-33), int(buf[5]-33)
+	// goto loop
+
+	if ev.Kind == keyboard.KindMouse {
+		c.PosX, c.PosY = ev.X, ev.Y
 
 		fmt.Printf("\033[%d;%dH", c.PosY+1, c.PosX+1) // Set cursor position.
 		goto loop
 	}
 
 	if c.EditMode == EditModeCanvas {
-		if buf[0] == 'q' {
-			fmt.Printf("q press detected, exiting.\r\n")
-			return nil
-		}
-
 		// Check if we hit an arrow key.
-		// 0o33: ESC
-		// 0o133: '['
-		if n == 3 && buf[0] == 0o33 && buf[1] == 0o133 {
-			switch buf[2] {
-			case 'A': // Up.
+		if ev.Kind == keyboard.KindArrow {
+			switch ev.Char {
+			case keyboard.KeyArrowUp: // Up.
 				if c.PosY > 0 {
 					c.PosY--
 				}
-			case 'B': // Down.
+			case keyboard.KeyArrowDown: // Down.
 				c.PosY++ // TODO: Handle upper bounds.
-			case 'C': // Right.
+			case keyboard.KeyArrowRight: // Right.
 				c.PosX++ // TODO: Handle upper bounds.
-			case 'D': // Left
+			case keyboard.KeyArrowLeft: // Left
 				if c.PosX > 0 {
 					c.PosX--
 				}
 			default:
-				return fmt.Errorf("unexpected arrow key value: %O", buf[2])
+				return fmt.Errorf("unexpected arrow key value: %O", ev.Char)
 			}
-			fmt.Printf("\033[%c", buf[2])
+			fmt.Printf("\033[%c", ev.Char)
 		}
-		if n == 1 && buf[0] == ' ' {
-			c.State[c.PosY][c.PosX][0] = ' '
-			c.State[c.PosY][c.PosX][1] = c.SettingForeground
-			c.State[c.PosY][c.PosX][2] = c.SettingBackground
 
-			fmt.Printf("\033[38;5%dm\033[48;5;%dm \033[0m", c.SettingForeground, c.SettingBackground)
-			c.PosX++
-		}
-		if n == 1 && buf[0] == 'f' {
-			c.clearScreen()
-			printColorGrid()
-			c.EditMode = EditModeForegroundGrid
-		}
-		if n == 1 && buf[0] == 'b' {
-			c.clearScreen()
-			printColorGrid()
-			c.EditMode = EditModeBackgroundGrid
-		}
-		if n == 1 && buf[0] == 'i' {
-			c.EditMode = EditModeInsert
-			goto loop
-		}
-		if n == 1 && buf[0] == 'o' {
-			encodedData, err := os.ReadFile("sprite.sprt")
-			if err != nil {
-				return fmt.Errorf("readfile: %w", err)
-			}
+		if ev.Kind == keyboard.KindRegular {
+			switch ev.Char {
+			case 'q':
+				fmt.Printf("q press detected, exiting.\r\n")
+				return nil
 
-			c.State = nil
-			if err := json.Unmarshal(encodedData, &c.State); err != nil {
-				return fmt.Errorf("json unmarshal: %w", err)
-			}
-			c.redraw()
-			goto loop
-		}
-		if n == 1 && buf[0] == 's' {
-			encodedData, err := json.Marshal(c.State)
-			if err != nil {
-				return fmt.Errorf("json marshal: %w", err)
-			}
+			case ' ':
+				c.State[c.PosY][c.PosX][0] = ' '
+				c.State[c.PosY][c.PosX][1] = c.SettingForeground
+				c.State[c.PosY][c.PosX][2] = c.SettingBackground
 
-			if err := os.WriteFile("sprite.sprt", encodedData, 0o600); err != nil {
-				return fmt.Errorf("writefile: %w", err)
+				fmt.Printf("\033[38;5%dm\033[48;5;%dm \033[0m", c.SettingForeground, c.SettingBackground)
+				c.PosX++
+
+			case 'f':
+				c.clearScreen()
+				printColorGrid()
+				c.EditMode = EditModeForegroundGrid
+
+			case 'b':
+				c.clearScreen()
+				printColorGrid()
+				c.EditMode = EditModeBackgroundGrid
+
+			case 'i':
+				c.EditMode = EditModeInsert
+				goto loop
+
+			case 'o':
+				encodedData, err := os.ReadFile("sprite.sprt")
+				if err != nil {
+					return fmt.Errorf("readfile: %w", err)
+				}
+
+				c.State = nil
+				if err := json.Unmarshal(encodedData, &c.State); err != nil {
+					return fmt.Errorf("json unmarshal: %w", err)
+				}
+				c.redraw()
+				goto loop
+
+			case 's':
+				encodedData, err := json.Marshal(c.State)
+				if err != nil {
+					return fmt.Errorf("json marshal: %w", err)
+				}
+
+				if err := os.WriteFile("sprite.sprt", encodedData, 0o600); err != nil {
+					return fmt.Errorf("writefile: %w", err)
+				}
 			}
 		}
 	}
 
 	if c.EditMode != EditModeCanvas {
-		if n == 1 && buf[0] == '\033' {
+		if ev.Kind == keyboard.KindRegular && ev.Char == keyboard.KeyEscape {
 			c.EditMode = EditModeCanvas
 			c.redraw()
 		}
 	}
 
 	if c.EditMode == EditModeInsert {
-		if buf[0] != '\033' {
-			r, _ := utf8.DecodeRune(buf)
-			c.State[c.PosY][c.PosX][0] = int(r)
+		if ev.Kind == keyboard.KindRegular && ev.Char == keyboard.KeyEscape {
+			c.State[c.PosY][c.PosX][0] = int(ev.Char)
 			c.State[c.PosY][c.PosX][1] = c.SettingForeground
 			c.State[c.PosY][c.PosX][2] = c.SettingBackground
-			fmt.Printf("\033[38;5;%dm\033[48;5;%dm%c\033[0m", c.SettingForeground, c.SettingBackground, r)
+			fmt.Printf("\033[38;5;%dm\033[48;5;%dm%c\033[0m", c.SettingForeground, c.SettingBackground, ev.Char)
 			c.PosX++
 		}
 
 		// Check if we hit an arrow key.
-		// 0o33: ESC
-		// 0o133: '['
-		if n == 3 && buf[0] == 0o33 && buf[1] == 0o133 {
-			switch buf[2] {
-			case 'A': // Up.
+		if ev.Kind == keyboard.KindArrow {
+			switch ev.Char {
+			case keyboard.KeyArrowUp: // Up.
 				if c.PosY > 0 {
 					c.PosY--
 				}
-			case 'B': // Down.
+			case keyboard.KeyArrowDown: // Down.
 				c.PosY++ // TODO: Handle upper bounds.
-			case 'C': // Right.
+			case keyboard.KeyArrowRight: // Right.
 				c.PosX++ // TODO: Handle upper bounds.
-			case 'D': // Left
+			case keyboard.KeyArrowLeft: // Left
 				if c.PosX > 0 {
 					c.PosX--
 				}
 			default:
-				return fmt.Errorf("unexpected arrow key value: %O", buf[2])
+				return fmt.Errorf("unexpected arrow key value: %O", ev.Char)
 			}
-			fmt.Printf("\033[%c", buf[2])
+			fmt.Printf("\033[%c", ev.Char)
 		}
 	}
 
 	if c.EditMode == EditModeForegroundGrid || c.EditMode == EditModeBackgroundGrid {
-		if n == 3 && buf[0] == 0o33 && buf[1] == 0o133 {
-			switch buf[2] {
-			case 'A': // Up.
+		// Check if we hit an arrow key.
+		if ev.Kind == keyboard.KindArrow {
+			switch ev.Char {
+			case keyboard.KeyArrowUp: // Up.
 				if c.PosY > 0 {
 					c.PosY--
-					fmt.Printf("\033[%c", buf[2])
+					fmt.Printf("\033[%c", ev.Char)
 				}
-			case 'B': // Down.
+			case keyboard.KeyArrowDown: // Down.
 				if c.PosY < 15 {
 					c.PosY++ // TODO: Handle upper bounds.
-					fmt.Printf("\033[%c", buf[2])
+					fmt.Printf("\033[%c", ev.Char)
 				}
-			case 'C': // Right.
+			case keyboard.KeyArrowRight: // Right.
 				if c.PosX < 30 {
 					c.PosX += 2 // TODO: Handle upper bounds.
-					fmt.Printf("\033[%c", buf[2])
-					fmt.Printf("\033[%c", buf[2])
+					fmt.Printf("\033[%c", ev.Char)
+					fmt.Printf("\033[%c", ev.Char)
 				}
-			case 'D': // Left
+			case keyboard.KeyArrowLeft: // Left
 				if c.PosX > 0 {
 					c.PosX -= 2
-					fmt.Printf("\033[%c", buf[2])
-					fmt.Printf("\033[%c", buf[2])
+					fmt.Printf("\033[%c", ev.Char)
+					fmt.Printf("\033[%c", ev.Char)
 				}
 			default:
-				return fmt.Errorf("unexpected arrow key value: %O", buf[2])
+				return fmt.Errorf("unexpected arrow key value: %O", ev.Char)
 			}
 		}
 
-		if n == 1 && buf[0] == ' ' {
+		if ev.Kind == keyboard.KindRegular && ev.Char == ' ' {
 			if c.EditMode == EditModeForegroundGrid {
 				c.SettingForeground = c.PosY*16 + c.PosX/2
 			} else {

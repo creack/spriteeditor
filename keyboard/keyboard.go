@@ -10,11 +10,37 @@ import (
 	"golang.org/x/term"
 )
 
+// Key enum type.
+type Key rune
+
+// Key enum values.
+const (
+	KeyEscape    Key = 0o33
+	KeyBackspace Key = 0o177
+
+	KeyArrowUp    Key = 'A'
+	KeyArrowDown  Key = 'B'
+	KeyArrowRight Key = 'C'
+	KeyArrowLeft  Key = 'D'
+)
+
+// Kind enum type.
+type Kind int
+
+// Kind enum values.
+const (
+	kindMin Kind = iota
+	KindRegular
+	KindSpecial
+	KindArrow
+	KindMouse
+)
+
 // Event represent a mouse/keyboard event.
 type Event struct {
-	Kind int // Mouse/Keyboard/Special key.
+	Kind Kind // Mouse/Keyboard/Special key.
 
-	Char rune
+	Char Key
 
 	// For mouse events.
 	X int
@@ -65,9 +91,9 @@ loop:
 	r, _ := utf8.DecodeRune(buf[:n])
 
 	ev := Event{
-		Kind: 0,
+		Kind: kindMin,
 
-		Char: r,
+		Char: Key(r),
 
 		X: 0,
 		Y: 0,
@@ -78,6 +104,33 @@ loop:
 		Error: nil,
 	}
 
+	// Check if we are dealing with a mouse event (CSI + 0o155 + x + y).
+	if n == 6 && buf[0] == 0o33 && buf[1] == 0o133 && buf[2] == 0o115 {
+		ev.Kind = KindMouse
+		ev.X, ev.Y = int(buf[4]-33), int(buf[5]-33)
+	}
+
+	// Handle the case of a single regular ESC press.
+	if n == 1 && Key(ev.Char) == KeyEscape {
+		ev.Kind = KindRegular
+	}
+
+	// Check if we have a CSI prefix.
+	if n > 2 && buf[0] == byte(KeyEscape) && buf[1] == '[' {
+		// CSI mode.
+		if n == 3 && buf[2] >= byte(KeyArrowUp) && buf[2] <= byte(KeyArrowLeft) {
+			// Directional arrow key pressed.
+			ev.Kind = KindArrow
+			ev.Char = Key(buf[2])
+		}
+	}
+
+	if ev.Kind == kindMin {
+		ev.Kind = KindRegular
+	}
+
+	// Attempt to send the event through the channel.
+	// If nothing is ready to receive, discard event.
 	select {
 	case ch <- ev:
 	default:
