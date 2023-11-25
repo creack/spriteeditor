@@ -2,13 +2,11 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
 	"os"
 	"unicode/utf8"
 
-	"golang.org/x/term"
+	"spriteeditor/keyboard"
 )
 
 // EditMode enum type.
@@ -82,14 +80,6 @@ func rawClearScreen() {
 	fmt.Printf("\033[%d;%dH", 0, 0) // Reset cursor.
 }
 
-func rawEnableMouseClickReporting() {
-	fmt.Print("\033[?1000h")
-}
-
-func rawDisableMouseClickReporting() {
-	fmt.Print("\033[?1000l")
-}
-
 func printColorGrid() {
 	for i := 0; i < 256; i++ {
 		if i > 0 && i%16 == 0 {
@@ -109,18 +99,14 @@ func printColorGrid() {
 // - [x] Save / Load work
 
 func run() error {
-	ts, err := term.MakeRaw(int(os.Stdin.Fd()))
+	ts, ch, err := keyboard.Open()
 	if err != nil {
-		return fmt.Errorf("makeRaw: %w", err)
+		return fmt.Errorf("keyboard open: %w", err)
 	}
-	defer func() { _ = term.Restore(int(os.Stdin.Fd()), ts) }() // Best effort.
-
-	rawEnableMouseClickReporting()
-	defer rawDisableMouseClickReporting()
+	defer func() { _ = keyboard.Close(ts) }() // Best effort.
 
 	c := NewCanvas(100, 20)
 	c.clearScreen()
-
 loop:
 
 	fmt.Print("\0337") // Save cursor position.
@@ -135,18 +121,10 @@ loop:
 	fmt.Printf("mode: %d", c.EditMode)
 	fmt.Print("\0338") // Restore cursor position.
 
-	buf := make([]byte, 6)
-	n, err := os.Stdin.Read(buf)
-	if err != nil {
-		if errors.Is(err, io.EOF) {
-			return nil
-		}
-		return fmt.Errorf("stdin read: %w", err)
-	}
-	if n == 0 {
-		return fmt.Errorf("unexpected size read")
-	}
-	buf = buf[:n]
+	ev := <-ch
+
+	n := ev.Size
+	buf := ev.Raw
 
 	if n == 6 {
 		c.PosX, c.PosY = int(buf[4]-33), int(buf[5]-33)
