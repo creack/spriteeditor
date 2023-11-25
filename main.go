@@ -82,6 +82,14 @@ func rawClearScreen() {
 	fmt.Printf("\033[%d;%dH", 0, 0) // Reset cursor.
 }
 
+func rawEnableMouseClickReporting() {
+	fmt.Print("\033[?1000h")
+}
+
+func rawDisableMouseClickReporting() {
+	fmt.Print("\033[?1000l")
+}
+
 func printColorGrid() {
 	for i := 0; i < 256; i++ {
 		if i > 0 && i%16 == 0 {
@@ -106,6 +114,9 @@ func run() error {
 		return fmt.Errorf("makeRaw: %w", err)
 	}
 	defer func() { _ = term.Restore(int(os.Stdin.Fd()), ts) }() // Best effort.
+
+	rawEnableMouseClickReporting()
+	defer rawDisableMouseClickReporting()
 
 	c := NewCanvas(100, 20)
 	c.clearScreen()
@@ -136,6 +147,13 @@ loop:
 		return fmt.Errorf("unexpected size read")
 	}
 	buf = buf[:n]
+
+	if n == 6 {
+		c.PosX, c.PosY = int(buf[4]-33), int(buf[5]-33)
+
+		fmt.Printf("\033[%d;%dH", c.PosY+1, c.PosX+1) // Set cursor position.
+		goto loop
+	}
 
 	if c.EditMode == EditModeCanvas {
 		if buf[0] == 'q' {
