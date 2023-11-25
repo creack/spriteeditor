@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"unicode/utf8"
 
 	"golang.org/x/term"
 )
@@ -219,11 +220,12 @@ loop:
 	}
 
 	if c.EditMode == EditModeInsert {
-		if n == 1 {
-			c.State[c.PosY][c.PosX][0] = int(buf[0])
+		if buf[0] != '\033' {
+			r, _ := utf8.DecodeRune(buf)
+			c.State[c.PosY][c.PosX][0] = int(r)
 			c.State[c.PosY][c.PosX][1] = c.SettingForeground
 			c.State[c.PosY][c.PosX][2] = c.SettingBackground
-			fmt.Printf("\033[38;5;%dm\033[48;5;%dm%c\033[0m", c.SettingForeground, c.SettingBackground, buf[0])
+			fmt.Printf("\033[38;5;%dm\033[48;5;%dm%c\033[0m", c.SettingForeground, c.SettingBackground, r)
 			c.PosX++
 		}
 
