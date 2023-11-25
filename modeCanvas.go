@@ -45,6 +45,11 @@ func (c *Canvas) modeCanvas(ev keyboard.Event) error {
 			fmt.Printf("\033[38;5%dm\033[48;5;%dm \033[0m", c.SettingForeground, c.SettingBackground)
 			c.PosX++
 
+		case 'c':
+			c.EditMode = EditModeCommonChars
+			c.clearScreen()
+			printCommonChars()
+
 		case 'f':
 			c.clearScreen()
 			printColorGrid()

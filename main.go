@@ -18,6 +18,7 @@ const (
 	EditModeForegroundGrid EditMode = 1
 	EditModeBackgroundGrid EditMode = 2
 	EditModeInsert         EditMode = 3
+	EditModeCommonChars    EditMode = 4
 )
 
 func run() error {
@@ -51,6 +52,8 @@ loop:
 		err = c.modeInsert(ev)
 	case EditModeForegroundGrid, EditModeBackgroundGrid:
 		err = c.modeColorGrid(ev, c.EditMode == EditModeForegroundGrid)
+	case EditModeCommonChars:
+		err = c.modeCommonChars(ev)
 	}
 
 	if err != nil {
