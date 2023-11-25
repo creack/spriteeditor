@@ -7,6 +7,8 @@ import (
 	"os"
 	"unicode/utf8"
 
+	"spriteeditor/termseq"
+
 	"golang.org/x/term"
 )
 
@@ -60,7 +62,7 @@ func Open() (*term.State, <-chan Event, error) {
 	if err != nil {
 		return nil, nil, fmt.Errorf("makeRaw: %w", err)
 	}
-	rawEnableMouseClickReporting()
+	termseq.EnableMouseClickReporting()
 
 	ch := make(chan Event)
 	go readLoop(ch)
@@ -143,14 +145,7 @@ loop:
 // NOTE: Also closes os.Stdin, meaning it can't be re-used after Close.
 func Close(ts *term.State) error {
 	defer func() { _ = os.Stdin.Close() }() // Best effort. Attempts to unblock the read loop.
-	rawDisableMouseClickReporting()
+
+	termseq.DisableMouseClickReporting()
 	return term.Restore(int(os.Stdin.Fd()), ts)
-}
-
-func rawEnableMouseClickReporting() {
-	fmt.Print("\033[?1000h")
-}
-
-func rawDisableMouseClickReporting() {
-	fmt.Print("\033[?1000l")
 }

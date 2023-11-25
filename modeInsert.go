@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"spriteeditor/keyboard"
+	"spriteeditor/termseq"
 )
 
 func (c *Canvas) modeInsert(ev keyboard.Event) error {
@@ -11,7 +12,9 @@ func (c *Canvas) modeInsert(ev keyboard.Event) error {
 		c.State[c.PosY][c.PosX][0] = int(ev.Char)
 		c.State[c.PosY][c.PosX][1] = c.SettingForeground
 		c.State[c.PosY][c.PosX][2] = c.SettingBackground
-		fmt.Printf("\033[38;5;%dm\033[48;5;%dm%c\033[0m", c.SettingForeground, c.SettingBackground, ev.Char)
+
+		fmt.Print(termseq.WrapColor(c.SettingForeground, c.SettingBackground, string(ev.Char)))
+
 		c.PosX++
 		return nil
 	}

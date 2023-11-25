@@ -1,6 +1,10 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+
+	"spriteeditor/termseq"
+)
 
 // Canvas is our main controller holding state.
 type Canvas struct {
@@ -40,7 +44,7 @@ func NewCanvas(initialWidth, initialHeight int) *Canvas {
 func (c *Canvas) clearScreen() {
 	c.PosX = 0
 	c.PosY = 0
-	rawClearScreen()
+	termseq.ClearScreen()
 }
 
 func (c *Canvas) redraw() {
@@ -55,4 +59,22 @@ func (c *Canvas) redraw() {
 		fmt.Print("\r\n")
 	}
 	fmt.Printf("\033[%d;%dH", 0, 0) // Reset cursor.
+}
+
+func (c *Canvas) printUI() {
+	termseq.SaveCursor()
+
+	termseq.MoveCursor(120-9, 1)
+	fmt.Printf("% 9s", fmt.Sprintf("%d/%d", c.PosX, c.PosY))
+
+	termseq.MoveCursor(120-6, 2)
+	fmt.Printf("fg: %s", termseq.WrapColor(0, c.SettingForeground, "  "))
+
+	termseq.MoveCursor(120-6, 3)
+	fmt.Printf("bg: %s", termseq.WrapColor(0, c.SettingBackground, "  "))
+
+	termseq.MoveCursor(120-7, 4)
+	fmt.Printf("mode: %d", c.EditMode)
+
+	termseq.RestoreCursor()
 }

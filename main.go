@@ -6,6 +6,7 @@ import (
 	"io"
 
 	"spriteeditor/keyboard"
+	"spriteeditor/termseq"
 )
 
 // EditMode enum type.
@@ -19,11 +20,6 @@ const (
 	EditModeInsert         EditMode = 3
 )
 
-func rawClearScreen() {
-	fmt.Print("\033[2J")
-	fmt.Printf("\033[%d;%dH", 0, 0) // Reset cursor.
-}
-
 func run() error {
 	ts, ch, err := keyboard.Open()
 	if err != nil {
@@ -35,31 +31,16 @@ func run() error {
 	c.clearScreen()
 loop:
 
-	fmt.Print("\0337") // Save cursor position.
-	fmt.Printf("\033[%d;%dH", 1, 120-9) // Move cursor.
-	// Print UI.
-	fmt.Printf("% 9s", fmt.Sprintf("%d/%d", c.PosX, c.PosY))
-	fmt.Printf("\033[%d;%dH", 2, 120-6) // Move cursor.
-	fmt.Printf("fg: \033[48;5;%dm  \033[0m", c.SettingForeground)
-	fmt.Printf("\033[%d;%dH", 3, 120-6) // Move cursor.
-	fmt.Printf("bg: \033[48;5;%dm  \033[0m", c.SettingBackground)
-	fmt.Printf("\033[%d;%dH", 4, 120-7) // Move cursor.
-	fmt.Printf("mode: %d", c.EditMode)
-	fmt.Print("\0338") // Restore cursor position.
+	c.printUI()
 
 	ev := <-ch
 
 	if ev.Kind == keyboard.KindMouse {
 		c.PosX, c.PosY = ev.X, ev.Y
 
-		fmt.Printf("\033[%d;%dH", c.PosY+1, c.PosX+1) // Set cursor position.
-		goto loop
-	}
-	if c.EditMode != EditModeCanvas {
-		if ev.Kind == keyboard.KindRegular && ev.Char == keyboard.KeyEscape {
-			c.EditMode = EditModeCanvas
-			c.redraw()
-		}
+		// Our canvas is 0 indexed but the terminal is 1 indexed.
+		termseq.MoveCursor(c.PosX+1, c.PosY+1)
+
 		goto loop
 	}
 
@@ -77,6 +58,14 @@ loop:
 			return nil
 		}
 		return fmt.Errorf("handle mode %d: %w", c.EditMode, err)
+	}
+
+	if c.EditMode != EditModeCanvas {
+		if ev.Kind == keyboard.KindRegular && ev.Char == keyboard.KeyEscape {
+			c.EditMode = EditModeCanvas
+			c.redraw()
+		}
+		goto loop
 	}
 
 	goto loop
